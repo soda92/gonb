@@ -49,7 +49,7 @@ func (c *Client) Start() error {
 	// the kernel receives from Jupyter and dying.
 	// Not sure on the status of MacOS:
 	// https://stackoverflow.com/questions/43364958/start-command-with-new-process-group-id-golang
-	c.goplsExec.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: 0}
+	// c.goplsExec.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: 0}
 	c.goplsExec.Dir = c.dir
 	klog.Infof("Executing %q", c.goplsExec)
 	err = c.goplsExec.Start()
