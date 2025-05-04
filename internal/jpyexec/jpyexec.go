@@ -9,16 +9,18 @@
 package jpyexec
 
 import (
-	"github.com/janpfeifer/gonb/gonbui/protocol"
-	"github.com/janpfeifer/gonb/internal/kernel"
-	"github.com/pkg/errors"
 	"io"
-	"k8s.io/klog/v2"
+	"net"
 	"os"
 	osexec "os/exec"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/janpfeifer/gonb/gonbui/protocol"
+	"github.com/janpfeifer/gonb/internal/kernel"
+	"github.com/pkg/errors"
+	"k8s.io/klog/v2"
 )
 
 // Executor holds the configuration and state when executing a command that is piped to Jupyter.
@@ -43,6 +45,7 @@ type Executor struct {
 	cmdStdin                                 io.WriteCloser
 	namedPipeReaderPath, namedPipeWriterPath string
 	pipeReader                               io.ReadCloser // GONB_PIPE
+	conn 									 net.Conn // GONB_PIPE_WIN
 
 	// pipeWriter is the pipe opened to send content to the program.
 	// jpyexec.Executor handles the opening/closing of the file, and exports
