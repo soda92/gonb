@@ -11,6 +11,12 @@ import (
 	"github.com/Microsoft/go-winio/pkg/guid"
 
 	"k8s.io/klog/v2"
+
+	"github.com/pkg/errors"
+	"io"
+	"encoding/gob"
+	
+	"github.com/janpfeifer/gonb/gonbui/protocol"
 )
 
 func (exec *Executor) createTmpFifo() (string, error) {
@@ -33,28 +39,12 @@ func (exec *Executor) openPipeReader() {
 	// See discussion in:
 	// https://stackoverflow.com/questions/75255426/how-to-interrupt-a-blocking-os-open-call-waiting-on-a-fifo-in-go
 	var muFifo sync.Mutex
-	fifoOpenedForReading := false
 
 	var w net.Listener
-
-	go func() {
-		// Clean up after program is over, there are two scenarios:
-		// 1. The executed program opened the pipe: then we just remove the pipePath.
-		// 2. The executed program never opened the pipe: then the other end (goroutine
-		//    below) will be forever blocked on os.Open call.
-		<-exec.doneChan
-		muFifo.Lock()
-		if !fifoOpenedForReading {
-			// w, err := os.OpenFile(exec.namedPipeReaderPath, os.O_WRONLY, 0600)
-			w, err := winio.ListenPipe(exec.namedPipeReaderPath, nil)
-			if err == nil {
-				// Closing it allows the open of the pipe for reading (below) to unblock.
-				_ = w.Close()
-			}
-		}
-		muFifo.Unlock()
-		_ = os.Remove(exec.namedPipeReaderPath)
-	}()
+	w, err := winio.ListenPipe(exec.namedPipeReaderPath, nil)
+	if err != nil {
+		klog.V(2).Infof("Opening named pipeReader in %q", exec.namedPipeReaderPath)
+	}
 
 	go func() {
 		klog.V(2).Infof("Opening named pipeReader in %q", exec.namedPipeReaderPath)
@@ -72,7 +62,6 @@ func (exec *Executor) openPipeReader() {
 		}
 		klog.V(2).Infof("Opened named pipeReader in %q", exec.namedPipeReaderPath)
 		muFifo.Lock()
-		fifoOpenedForReading = true
 		defer muFifo.Unlock()
 
 		// Start polling of the pipeReader.
@@ -88,7 +77,7 @@ func (exec *Executor) openPipeReader() {
 // pollNamedPipeReader will continuously read for incoming requests with displaying content
 // on the notebook or widgets updates.
 func (exec *Executor) pollNamedPipeReader() {
-	decoder := gob.NewDecoder(exec.pipeReader)
+	decoder := gob.NewDecoder(exec.conn)
 	for {
 		data := &protocol.DisplayData{}
 		err := decoder.Decode(data)
